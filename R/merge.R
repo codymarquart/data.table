@@ -1,16 +1,17 @@
-merge.data.table <- function(x, y, by = NULL, by.x = NULL, by.y = NULL, all = FALSE, all.x = all,
+merge.data.table = function(x, y, by = NULL, by.x = NULL, by.y = NULL, all = FALSE, all.x = all,
                all.y = all, sort = TRUE, suffixes = c(".x", ".y"), no.dups = TRUE, allow.cartesian=getOption("datatable.allow.cartesian"), ...) {
   if (!sort %in% c(TRUE, FALSE))
     stop("Argument 'sort' should be logical TRUE/FALSE")
   if (!no.dups %in% c(TRUE, FALSE))
     stop("Argument 'no.dups' should be logical TRUE/FALSE")
+  class_x = class(x)
   if (!is.data.table(y)) {
     y = as.data.table(y)
     if (missing(by) && missing(by.x)) {
       by = key(x)
     }
   }
-  if ((x0 <- length(x)==0L) | (y0 <- length(y)==0L)) warning(sprintf("You are trying to join data.tables where %s 0 columns data.table.", if(x0 & y0) "'x' and 'y' arguments are" else if(x0 & !y0) "'x' argument is" else if(!x0 & y0) "'y' argument is"))
+  if ((x0 <- length(x)==0L) | (y0 <- length(y)==0L)) warning("You are trying to join data.tables where ", if(x0 & y0) "'x' and 'y' arguments are" else if(x0 & !y0) "'x' argument is" else if(!x0 & y0) "'y' argument is", " 0 columns data.table.")
   if (any(duplicated(names(x)))) stop("x has some duplicated column name(s): ",paste(names(x)[duplicated(names(x))],collapse=","),". Please remove or rename the duplicate(s) and try again.")
   if (any(duplicated(names(y)))) stop("y has some duplicated column name(s): ",paste(names(y)[duplicated(names(y))],collapse=","),". Please remove or rename the duplicate(s) and try again.")
 
@@ -20,11 +21,11 @@ merge.data.table <- function(x, y, by = NULL, by.x = NULL, by.y = NULL, all = FA
   if (!missing(by) && !missing(by.x))
     warning("Supplied both `by` and `by.x/by.y`. `by` argument will be ignored.")
   if (!is.null(by.x)) {
-    if ( !is.character(by.x) || !is.character(by.y))
-      stop("A non-empty vector of column names are required for `by.x` and `by.y`.")
-    if (!all(by.x %in% names(x)))
+    if (length(by.x) == 0L || !is.character(by.x) || !is.character(by.y))
+      stop("A non-empty vector of column names is required for `by.x` and `by.y`.")
+    if (!all(by.x %chin% names(x)))
       stop("Elements listed in `by.x` must be valid column names in x.")
-    if (!all(by.y %in% names(y)))
+    if (!all(by.y %chin% names(y)))
       stop("Elements listed in `by.y` must be valid column names in y.")
     by = by.x
     names(by) = by.y
@@ -37,7 +38,7 @@ merge.data.table <- function(x, y, by = NULL, by.x = NULL, by.y = NULL, all = FA
       by = intersect(names(x), names(y))
     if (length(by) == 0L || !is.character(by))
       stop("A non-empty vector of column names for `by` is required.")
-    if (!all(by %in% intersect(colnames(x), colnames(y))))
+    if (!all(by %chin% intersect(colnames(x), colnames(y))))
       stop("Elements listed in `by` must be valid column names in x and y")
     by = unname(by)
     by.x = by.y = by
@@ -50,21 +51,21 @@ merge.data.table <- function(x, y, by = NULL, by.x = NULL, by.y = NULL, all = FA
   end = setdiff(names(y), by.y)
   dupnames = intersect(start, end)
   if (length(dupnames)) {
-    start[chmatch(dupnames, start, 0L)] = paste(dupnames, suffixes[1L], sep="")
-    end[chmatch(dupnames, end, 0L)] = paste(dupnames, suffixes[2L], sep="")
+    start[chmatch(dupnames, start, 0L)] = paste0(dupnames, suffixes[1L])
+    end[chmatch(dupnames, end, 0L)] = paste0(dupnames, suffixes[2L])
   }
   # If no.dups = TRUE we also need to added the suffix to columns in y
   # that share a name with by.x
   dupkeyx = intersect(by.x, end)
   if (no.dups && length(dupkeyx)) {
-    end[chmatch(dupkeyx, end, 0L)] = paste(dupkeyx, suffixes[2L], sep="")
+    end[chmatch(dupkeyx, end, 0L)] = paste0(dupkeyx, suffixes[2L])
   }
 
-  dt = y[x,nomatch = if (all.x) NA else 0L,on=by,allow.cartesian=allow.cartesian]   # includes JIS columns (with a i. prefix if conflict with x names)
+  dt = y[x, nomatch=if (all.x) NA else NULL, on=by, allow.cartesian=allow.cartesian]   # includes JIS columns (with a i. prefix if conflict with x names)
 
   if (all.y && nrow(y)) {  # If y does not have any rows, no need to proceed
     # Perhaps not very commonly used, so not a huge deal that the join is redone here.
-    missingyidx = y[!x,which=TRUE,on=by,allow.cartesian=allow.cartesian]
+    missingyidx = y[!x, which=TRUE, on=by, allow.cartesian=allow.cartesian]
     if (length(missingyidx)) {
       yy = y[missingyidx]
       othercolsx = setdiff(names(x), by)
@@ -74,11 +75,11 @@ merge.data.table <- function(x, y, by = NULL, by.x = NULL, by.y = NULL, all = FA
         yy = cbind(yy, x[tmp, othercolsx, with = FALSE])
       }
       # empty data.tables (nrow =0, ncol>0) doesn't skip names anymore in new rbindlist
-      # takes care of #5672 without having to save names. This is how it should be, IMHO.
+      # takes care of #24 without having to save names. This is how it should be, IMHO.
       dt = rbind(dt, yy, use.names=FALSE)
     }
   }
-  # X[Y] sytax puts JIS i columns at the end, merge likes them alongside i.
+  # X[Y] syntax puts JIS i columns at the end, merge likes them alongside i.
   newend = setdiff(names(y), by.y)
   # fix for #1290, make sure by.y order is set properly before naming
   setcolorder(dt, c(by.y, setdiff(names(dt), c(by.y, newend)), newend))
@@ -86,18 +87,16 @@ merge.data.table <- function(x, y, by = NULL, by.x = NULL, by.y = NULL, all = FA
   if (nrow(dt) > 0L) {
     setkeyv(dt, if (sort) by.x else NULL)
   }
-  
+
   # Throw warning if there are duplicate column names in 'dt' (i.e. if
   # `suffixes=c("","")`, to match behaviour in base:::merge.data.frame)
-  resultdupnames <- names(dt)[duplicated(names(dt))]
+  resultdupnames = names(dt)[duplicated(names(dt))]
   if (length(resultdupnames)) {
-    warning("column names ", paste0("'", resultdupnames, "'", collapse=", "), 
+    warning("column names ", paste0("'", resultdupnames, "'", collapse=", "),
             " are duplicated in the result")
   }
-  
-  # merge resets class, #1378. X[Y] is quite clear that X is being *subset* by Y,
-  # makes sense to therefore retain X's class, unlike `merge`. Hard to tell what
-  # class to retain for *full join* for example.
-  setattr(dt, 'class', c("data.table", "data.frame"))
+
+  # retain custom classes of first argument that resulted in dispatch to this method, #1378
+  setattr(dt, "class", class_x)
   dt
 }
